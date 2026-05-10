@@ -1,3 +1,11 @@
+import sys
+import os
+from pathlib import Path
+
+# Ensure repo root is on sys.path so `src.*` imports resolve when Streamlit
+# Cloud runs this file directly (it adds src/ui/ but not the project root).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
 import time
 import uuid
 import logging
