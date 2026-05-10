@@ -103,6 +103,13 @@ def create_memory_node(state: SupportState, store: BaseStore) -> dict:
 
 # ── Graph assembly ────────────────────────────────────────────────────────────
 
+def route_after_load_memory(state: SupportState) -> str:
+    """After loading memory, go to the right agent based on supervisor's earlier decision."""
+    if state.get("route") in ("invoice", "mixed"):
+        return "invoice_agent"
+    return "music_llm"
+
+
 def build_graph():
     global _graph
     if _graph is not None:
@@ -111,37 +118,43 @@ def build_graph():
     workflow = StateGraph(SupportState)
 
     # Nodes
+    workflow.add_node("supervisor", supervisor_node)
     workflow.add_node("verify_info", verify_info_node)
     workflow.add_node("load_memory", load_memory_node)
-    workflow.add_node("supervisor", supervisor_node)
     workflow.add_node("music_llm", music_llm_node)
     workflow.add_node("music_tools", music_tools_node)
     workflow.add_node("invoice_agent", invoice_agent_node)
     workflow.add_node("reject", reject_node)
     workflow.add_node("create_memory", create_memory_node)
 
-    # Entry
-    workflow.add_edge(START, "verify_info")
+    # Supervisor runs first — classifies intent before any verification
+    workflow.add_edge(START, "supervisor")
 
-    # Verify: loop back until verified
+    # Music: skip verification, go straight to memory load then agent
+    # Invoice/mixed: must verify identity first
+    # Off-topic: reject immediately
+    workflow.add_conditional_edges(
+        "supervisor",
+        route_supervisor,
+        {
+            "music_llm": "load_memory",
+            "invoice_agent": "verify_info",
+            "reject": "reject",
+        },
+    )
+
+    # Verify: loop until verified, then load memory
     workflow.add_conditional_edges(
         "verify_info",
         route_after_verify,
         {"load_memory": "load_memory", "verify_info": "verify_info"},
     )
 
-    # After memory load → supervisor
-    workflow.add_edge("load_memory", "supervisor")
-
-    # Supervisor routes
+    # After memory load → correct agent based on stored route
     workflow.add_conditional_edges(
-        "supervisor",
-        route_supervisor,
-        {
-            "music_llm": "music_llm",
-            "invoice_agent": "invoice_agent",
-            "reject": "reject",
-        },
+        "load_memory",
+        route_after_load_memory,
+        {"music_llm": "music_llm", "invoice_agent": "invoice_agent"},
     )
 
     # Music ReAct loop
