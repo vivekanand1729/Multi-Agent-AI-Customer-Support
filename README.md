@@ -2,6 +2,10 @@
 
 A LangGraph-powered multi-agent customer support system for a digital music store, backed by the [Chinook sample database](https://github.com/lerocha/chinook-database).
 
+## Live Demo
+
+🚀 **[https://multi-agent-ai-customer-support.streamlit.app/](https://multi-agent-ai-customer-support.streamlit.app/)**
+
 ## Architecture
 
 ```
