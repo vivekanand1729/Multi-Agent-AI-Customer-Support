@@ -139,10 +139,66 @@ def get_track_details(track_id: str) -> str:
     return result
 
 
+@tool
+def list_genres() -> str:
+    """List all available music genres in the catalog."""
+    logger.info("Tool: list_genres")
+    result = run_query_safe(
+        "SELECT g.GenreId, g.Name AS Genre, COUNT(t.TrackId) AS TrackCount "
+        "FROM Genre g JOIN Track t ON g.GenreId = t.GenreId "
+        "GROUP BY g.GenreId, g.Name "
+        "ORDER BY TrackCount DESC"
+    )
+    rows = json.loads(result)
+    if not rows:
+        return "No genres found."
+    return result
+
+
+@tool
+def list_artists(genre_name: str = "") -> str:
+    """List artists in the catalog. Optionally filter by genre name.
+    Returns up to 50 artists with their album count."""
+    logger.info("Tool: list_artists | genre=%s", genre_name)
+    if genre_name:
+        result = run_query_safe(
+            "SELECT DISTINCT ar.ArtistId, ar.Name AS Artist, "
+            "COUNT(DISTINCT al.AlbumId) AS AlbumCount "
+            "FROM Artist ar "
+            "JOIN Album al ON ar.ArtistId = al.ArtistId "
+            "JOIN Track t ON al.AlbumId = t.AlbumId "
+            "JOIN Genre g ON t.GenreId = g.GenreId "
+            "WHERE g.Name LIKE :pattern "
+            "GROUP BY ar.ArtistId, ar.Name "
+            "ORDER BY ar.Name "
+            "LIMIT 50",
+            {"pattern": f"%{genre_name}%"},
+        )
+        rows = json.loads(result)
+        if not rows:
+            return f"No artists found for genre matching '{genre_name}'."
+    else:
+        result = run_query_safe(
+            "SELECT ar.ArtistId, ar.Name AS Artist, "
+            "COUNT(al.AlbumId) AS AlbumCount "
+            "FROM Artist ar "
+            "JOIN Album al ON ar.ArtistId = al.ArtistId "
+            "GROUP BY ar.ArtistId, ar.Name "
+            "ORDER BY ar.Name "
+            "LIMIT 50"
+        )
+        rows = json.loads(result)
+        if not rows:
+            return "No artists found."
+    return result
+
+
 music_tools = [
     get_albums_by_artist,
     get_songs_by_artist,
     get_songs_by_genre,
     search_songs_by_title,
     get_track_details,
+    list_genres,
+    list_artists,
 ]

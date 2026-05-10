@@ -34,6 +34,7 @@ START → verify_info → load_memory → supervisor
 ## Setup
 
 ```bash
+pip install -r requirements.txt
 cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY
 ```
