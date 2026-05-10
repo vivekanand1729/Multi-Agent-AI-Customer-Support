@@ -27,10 +27,10 @@ st.set_page_config(
 )
 
 AGENT_LABELS = {
-    "music":   ("🎵", "Music Agent"),
-    "invoice": ("🧾", "Invoice Agent"),
-    "mixed":   ("🎵🧾", "Music + Invoice"),
-    "off_topic": ("🚫", "Off-topic"),
+    "music":     ("🎵", "Maya · Music Agent",   "#1DB954"),
+    "invoice":   ("🧾", "Alex · Invoice Agent",  "#1E90FF"),
+    "mixed":     ("🎵🧾", "Maya & Alex",          "#9B59B6"),
+    "off_topic": ("🚫", "Out of scope",           "#E74C3C"),
 }
 
 SUGGESTIONS_ANONYMOUS = [
@@ -171,11 +171,11 @@ def _render_sidebar():
 
         st.divider()
 
-        # Quick questions
+        # Quick questions — use index-based keys so they're stable across state changes
         st.markdown("#### 💡 Try asking")
         suggestions = SUGGESTIONS_VERIFIED if st.session_state.verified_customer else SUGGESTIONS_ANONYMOUS
-        for s in suggestions[:4]:
-            if st.button(s, use_container_width=True, key=f"sug_{s}"):
+        for i, s in enumerate(suggestions[:4]):
+            if st.button(s, use_container_width=True, key=f"sug_{i}"):
                 st.session_state.pending_input = s
                 st.rerun()
 
@@ -202,7 +202,6 @@ def _render_sidebar():
                     icon = "✅" if info["ok"] else "❌"
                     st.caption(f"{icon} {tbl}: {info['actual']} rows")
 
-        st.caption("Built with LangGraph + Claude")
 
 
 def _render_welcome():
@@ -231,10 +230,21 @@ def _render_welcome():
 
 def _render_agent_label(route: str | None, elapsed: float):
     if route and route in AGENT_LABELS:
-        icon, label = AGENT_LABELS[route]
-        st.caption(f"{icon} {label} · ⏱ {elapsed}s")
+        icon, label, color = AGENT_LABELS[route]
+        st.markdown(
+            f'<span style="font-size:0.75rem; color:{color}; font-weight:600;">'
+            f'{icon} {label}</span> '
+            f'<span style="font-size:0.75rem; color:gray;">· ⏱ {elapsed}s</span>',
+            unsafe_allow_html=True,
+        )
     else:
         st.caption(f"⏱ {elapsed}s")
+
+
+def _spinner_label(waiting_for_input: bool) -> str:
+    if waiting_for_input:
+        return "Verifying your identity…"
+    return "Thinking…"
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -264,16 +274,16 @@ def main():
             "_Provide your Customer ID (1–59), email, or phone number._"
         )
 
-    # Consume a pending suggestion-chip click
-    pending = st.session_state.pop("pending_input", None)
-
     placeholder = (
         "Enter your Customer ID, email, or phone number…"
         if st.session_state.waiting_for_input
         else "Ask about music, albums, invoices, or purchases…"
     )
 
-    user_input = pending or (st.chat_input(placeholder) if not pending else None)
+    # Consume a pending suggestion-chip click OR typed input
+    pending = st.session_state.pop("pending_input", None)
+    typed = st.chat_input(placeholder) if not pending else None
+    user_input = pending or typed
 
     if user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
@@ -281,7 +291,7 @@ def main():
             st.markdown(user_input)
 
         with st.chat_message("assistant"):
-            with st.spinner("Thinking…"):
+            with st.spinner(_spinner_label(st.session_state.waiting_for_input)):
                 reply, is_interrupt, elapsed, route = _process(user_input)
 
             if is_interrupt:
